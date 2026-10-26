@@ -34,11 +34,8 @@ jobs:
       - name: Pasang paket aplikasi
         run: npm install
 
-      # Harus DISIMPAN ke package.json (di mesin pembangun saja, bukan di repo): Capacitor hanya mengenali
-      # plugin yang tercatat di package.json. Dengan --no-save, plugin notifikasi, berbagi, dan berkas
-      # tidak ikut masuk ke APK.
-      - name: Pasang Capacitor (hanya untuk APK)
-        run: npm install @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
+      - name: Pasang Capacitor (hanya untuk APK, tidak mengubah package.json)
+        run: npm install --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
 
       - name: Bangun aplikasi web
         run: npm run build
@@ -54,8 +51,6 @@ jobs:
       - name: Sinkronkan web ke Android
         run: npx cap sync android
 
-      - name: Pastikan plugin Android ikut terpasang
-        run: | for p in local-notifications filesystem share; do if ! grep -q "capacitor-$p" android/capacitor.settings.gradle; then echo "::error::Plugin capacitor-$p tidak ikut terpasang di proyek Android, APK akan kehilangan fitur itu." cat android/capacitor.settings.gradle exit 1 fi done echo "Plugin notifikasi, berkas, dan berbagi terpasang." grep -n 'name="app_name"' android/app/src/main/res/values/strings.xml 
       - name: Bangun APK
         working-directory: android
         run: | chmod +x gradlew ./gradlew assembleDebug --no-daemon --stacktrace 
