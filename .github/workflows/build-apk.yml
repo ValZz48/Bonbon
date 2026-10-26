@@ -1,4 +1,4 @@
-#Membangun APK Android dari kode ini. Jalan otomatis setiap ada perubahan di cabang utama,
+# Membangun APK Android dari kode ini. Jalan otomatis setiap ada perubahan di cabang utama,
 # atau manual: tab Actions > "Bangun APK" > Run workflow.
 # Hasilnya ada di tab Releases (file .apk, tinggal diunduh dan dipasang di HP).
 name: Bangun APK
@@ -21,14 +21,7 @@ jobs:
       # Cara termudah dari HP: unggah satu berkas zip kode ke repo (tanpa diekstrak). Kalau repo berisi
       # kode biasa dan tidak ada zip, langkah ini dilewati.
       - name: Buka zip kode (jika ada)
-        run: |
-          Z=""
-          if [ -f bonbon-pos.zip ]; then Z=bonbon-pos.zip; else Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi
-          if [ -n "$Z" ]; then
-            echo "Membuka $Z"
-            unzip -oq "$Z" -x '.github/*'
-          fi
-
+        run: | Z="" if [ -f bonbon-pos.zip ]; then Z=bonbon-pos.zip; else Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi if [ -n "$Z" ]; then echo "Membuka $Z" unzip -oq "$Z" -x '.github/*' fi 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -41,8 +34,11 @@ jobs:
       - name: Pasang paket aplikasi
         run: npm install
 
-      - name: Pasang Capacitor (hanya untuk APK, tidak mengubah package.json)
-        run: npm install --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
+      # Harus DISIMPAN ke package.json (di mesin pembangun saja, bukan di repo): Capacitor hanya mengenali
+      # plugin yang tercatat di package.json. Dengan --no-save, plugin notifikasi, berbagi, dan berkas
+      # tidak ikut masuk ke APK.
+      - name: Pasang Capacitor (hanya untuk APK)
+        run: npm install @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
 
       - name: Bangun aplikasi web
         run: npm run build
@@ -58,12 +54,11 @@ jobs:
       - name: Sinkronkan web ke Android
         run: npx cap sync android
 
+      - name: Pastikan plugin Android ikut terpasang
+        run: | for p in local-notifications filesystem share; do if ! grep -q "capacitor-$p" android/capacitor.settings.gradle; then echo "::error::Plugin capacitor-$p tidak ikut terpasang di proyek Android, APK akan kehilangan fitur itu." cat android/capacitor.settings.gradle exit 1 fi done echo "Plugin notifikasi, berkas, dan berbagi terpasang." grep -n 'name="app_name"' android/app/src/main/res/values/strings.xml 
       - name: Bangun APK
         working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
+        run: | chmod +x gradlew ./gradlew assembleDebug --no-daemon --stacktrace 
       - name: Siapkan berkas
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Bonbon.apk
 
@@ -75,8 +70,4 @@ jobs:
       - name: Terbitkan di Releases
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "apk-${{ github.run_number }}" Bonbon.apk \
-            --title "Bonbon APK #${{ github.run_number }}" \
-            --notes "Unduh Bonbon.apk lalu pasang di HP Android. Pembaruan dipasang langsung di atas aplikasi lama, data tetap aman."
-            
+        run: | gh release create "apk-${{ github.run_number }}" Bonbon.apk \ --title "Bonbon APK #${{ github.run_number }}" \ --notes "Unduh Bonbon.apk lalu pasang di HP Android. Pembaruan dipasang langsung di atas aplikasi lama, data tetap aman."
