@@ -65,7 +65,10 @@ jobs:
 
       - name: Bangun APK
         working-directory: android
-        run: | chmod +x gradlew ./gradlew assembleDebug --no-daemon --stacktrace 
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
       - name: Siapkan berkas
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Bonbon.apk
 
@@ -77,4 +80,8 @@ jobs:
       - name: Terbitkan di Releases
         env:
           GH_TOKEN: ${{ github.token }}
-        run: | gh release create "apk-${{ github.run_number }}" Bonbon.apk \ --title "Bonbon APK #${{ github.run_number }}" \ --notes "Unduh Bonbon.apk lalu pasang di HP Android. Pembaruan dipasang langsung di atas aplikasi lama, data tetap aman."
+        run: |
+          gh release create "apk-${{ github.run_number }}" Bonbon.apk \
+            --title "Bonbon APK #${{ github.run_number }}" \
+            --notes "Unduh Bonbon.apk lalu pasang di HP Android. Pembaruan dipasang langsung di atas aplikasi lama, data tetap aman."
+            
