@@ -18,10 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Cara termudah dari HP: unggah satu berkas zip kode ke repo (tanpa diekstrak). Kalau repo berisi
+            # Cara termudah dari HP: unggah satu berkas zip kode ke repo (tanpa diekstrak). Kalau repo berisi
       # kode biasa dan tidak ada zip, langkah ini dilewati.
       - name: Buka zip kode (jika ada)
-        run: | Z="" if [ -f bonbon-pos.zip ]; then Z=bonbon-pos.zip; else Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi if [ -n "$Z" ]; then echo "Membuka $Z" unzip -oq "$Z" -x '.github/*' fi 
+        run: |
+          Z=""
+          if [ -f bonbon-pos.zip ]; then
+            Z="bonbon-pos.zip"
+          else
+            Z=$(ls -t *.zip 2>/dev/null | head -n 1 || true)
+          fi
+          
+          if [ -n "$Z" ]; then
+            echo "Membuka $Z"
+            unzip -oq "$Z" -x '.github/*'
+          fi
+          
       - uses: actions/setup-node@v4
         with:
           node-version: 22
