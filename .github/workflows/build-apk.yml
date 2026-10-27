@@ -17,23 +17,20 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-            # Cara termudah dari HP: unggah satu berkas zip kode ke repo (tanpa diekstrak). Kalau repo berisi
+      # Cara termudah dari HP: unggah satu berkas zip kode ke repo (tanpa diekstrak). Kalau repo berisi
       # kode biasa dan tidak ada zip, langkah ini dilewati.
       - name: Buka zip kode (jika ada)
         run: |
           Z=""
-          if [ -f bonbon-pos.zip ]; then
-            Z="bonbon-pos.zip"
-          else
-            Z=$(ls -t *.zip 2>/dev/null | head -n 1 || true)
-          fi
-          
+          if [ -f bonbon-pos.zip ]; then Z=bonbon-pos.zip; else Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi
           if [ -n "$Z" ]; then
             echo "Membuka $Z"
             unzip -oq "$Z" -x '.github/*'
           fi
-          
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -46,8 +43,8 @@ jobs:
       - name: Pasang paket aplikasi
         run: npm install
 
-      - name: Pasang Capacitor (hanya untuk APK, tidak mengubah package.json)
-        run: npm install --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
+      # Plugin Capacitor (notifikasi, berkas, berbagi) tercatat di package.json, jadi `npm install` di atas sudah
+      # memasangnya dan Capacitor mengenalinya. (Jangan dipasang dengan --no-save: plugin tidak ikut masuk ke APK.)
 
       - name: Bangun aplikasi web
         run: npm run build
@@ -55,22 +52,54 @@ jobs:
       - name: Buat proyek Android
         run: npx cap add android
 
+      # Kunci tanda tangan APK disimpan di GitHub Secrets (Settings > Secrets and variables > Actions),
+      # bukan di repo. Caranya ada di PANDUAN-APK.md bagian "Kunci tanda tangan".
+      - name: Siapkan kunci tanda tangan dari Secrets
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KS_ALIAS" ]; then
+            echo "::error::Secret kunci tanda tangan belum diisi (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS). Ikuti PANDUAN-APK.md bagian Kunci tanda tangan."
+            exit 1
+          fi
+          printf '%s' "$KS_B64" | base64 -d > android/app/bonbon-release.keystore
+          test -s android/app/bonbon-release.keystore
+
       - name: Sesuaikan proyek Android (izin, ikon, kunci tanda tangan)
         run: node scripts/android-patch.mjs
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
       - name: Sinkronkan web ke Android
         run: npx cap sync android
 
+      - name: Pastikan plugin Android ikut terpasang
+        run: |
+          for p in local-notifications filesystem share; do
+            if ! grep -q "capacitor-$p" android/capacitor.settings.gradle; then
+              echo "::error::Plugin capacitor-$p tidak ikut terpasang di proyek Android, APK akan kehilangan fitur itu."
+              cat android/capacitor.settings.gradle
+              exit 1
+            fi
+          done
+          echo "Plugin notifikasi, berkas, dan berbagi terpasang."
+          grep -n 'name="app_name"' android/app/src/main/res/values/strings.xml
+
       - name: Bangun APK
         working-directory: android
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Siapkan berkas
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Bonbon.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk Bonbon.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -84,4 +113,3 @@ jobs:
           gh release create "apk-${{ github.run_number }}" Bonbon.apk \
             --title "Bonbon APK #${{ github.run_number }}" \
             --notes "Unduh Bonbon.apk lalu pasang di HP Android. Pembaruan dipasang langsung di atas aplikasi lama, data tetap aman."
-            
