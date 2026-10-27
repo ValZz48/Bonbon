@@ -24,8 +24,9 @@ jobs:
       # kode biasa dan tidak ada zip, langkah ini dilewati.
       - name: Buka zip kode (jika ada)
         run: |
-          Z=""
-          if [ -f bonbon-pos.zip ]; then Z=bonbon-pos.zip; else Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi
+          # Kalau ada beberapa zip (GitHub memberi nama bonbon-pos-2.zip saat nama sama), yang bernomor paling besar dipakai.
+          Z=$(ls bonbon-pos*.zip 2>/dev/null | awk '{n=0; if (match($0,/-[0-9]+\.zip$/)) n=substr($0,RSTART+1,RLENGTH-5); print n, $0}' | sort -n | tail -1 | cut -d' ' -f2- || true)
+          if [ -z "$Z" ]; then Z=$(ls -t *.zip 2>/dev/null | head -1 || true); fi
           if [ -n "$Z" ]; then
             echo "Membuka $Z"
             unzip -oq "$Z" -x '.github/*'
@@ -43,8 +44,10 @@ jobs:
       - name: Pasang paket aplikasi
         run: npm install
 
-      # Plugin Capacitor (notifikasi, berkas, berbagi) tercatat di package.json, jadi `npm install` di atas sudah
-      # memasangnya dan Capacitor mengenalinya. (Jangan dipasang dengan --no-save: plugin tidak ikut masuk ke APK.)
+      # Plugin Capacitor (notifikasi, berkas, berbagi) harus TERCATAT di package.json agar ikut masuk ke APK
+      # (jangan pakai --no-save). Kalau zip kode sudah mencatatnya, langkah ini tidak mengubah apa-apa.
+      - name: Pastikan Capacitor terpasang dan tercatat
+        run: npm install @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7 @capacitor/local-notifications@7 @capacitor/filesystem@7 @capacitor/share@7
 
       - name: Bangun aplikasi web
         run: npm run build
